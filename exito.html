@@ -1,0 +1,284 @@
+<!-- exito.html -->
+<!-- El usuario llega aquí DESPUÉS de pagar.
+     Antes de desbloquear nada, preguntamos al servidor si el pago es real. -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Verificando tu pago · WhatsApp a PDF</title>
+  <style>
+    :root { color-scheme: light dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: #0b141a;
+      color: #e9edef;
+    }
+    .tarjeta {
+      width: 100%;
+      max-width: 420px;
+      background: #111b21;
+      border: 1px solid #2a3942;
+      border-radius: 16px;
+      padding: 2rem;
+      text-align: center;
+    }
+    .check {
+      width: 64px;
+      height: 64px;
+      margin: 0 auto 1rem;
+      border-radius: 50%;
+      background: #00a884;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2rem;
+    }
+    h1 { font-size: 1.4rem; margin: 0 0 .5rem; }
+    p { color: #8696a0; line-height: 1.5; margin: 0 0 1.5rem; }
+    .boton {
+      display: inline-block;
+      width: 100%;
+      padding: .9rem 1rem;
+      border: none;
+      border-radius: 10px;
+      background: #00a884;
+      color: #04211a;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .boton:hover { background: #06cf9c; }
+    .boton:focus-visible { outline: 2px solid #53bdeb; outline-offset: 2px; }
+    .boton:disabled { opacity: .6; cursor: default; }
+    .volver { display: inline-block; margin-top: 1rem; color: #53bdeb; font-size: .9rem; }
+    .error { color: #f0a5a5; }
+
+    /* ← NUEVO: oculta las caras de la tarjeta que no toca mostrar. */
+    [hidden] { display: none; }
+
+    /* ← NUEVO: círculo rojo para el caso "no has pagado". */
+    .cruz {
+      width: 64px;
+      height: 64px;
+      margin: 0 auto 1rem;
+      border-radius: 50%;
+      background: #3a2126;
+      border: 1px solid #6b3038;
+      color: #f0a5a5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2rem;
+    }
+
+    /* ← NUEVO: ruedecita giratoria mientras se comprueba el pago. */
+    .spinner {
+      width: 44px;
+      height: 44px;
+      margin: 0 auto 1.25rem;
+      border: 3px solid #2a3942;
+      border-top-color: #00a884;
+      border-radius: 50%;
+      animation: girar .9s linear infinite;
+    }
+    @keyframes girar { to { transform: rotate(360deg); } }
+    /* Respetamos a quien tenga desactivadas las animaciones en su sistema. */
+    @media (prefers-reduced-motion: reduce) {
+      .spinner { animation-duration: 3s; }
+    }
+
+    .mensaje { min-height: 1.2em; margin: 0 0 1rem; font-size: .9rem; }
+  </style>
+</head>
+<body>
+  <main class="tarjeta">
+
+    <!-- ← NUEVO · CARA 1: mientras preguntamos al servidor -->
+    <section id="comprobando" aria-live="polite">
+      <div class="spinner" aria-hidden="true"></div>
+      <h1>Comprobando tu pago…</h1>
+      <p>Un momento, estamos confirmando la transacción con la pasarela de pago.</p>
+    </section>
+
+    <!-- CARA 2: pago confirmado (tu tarjeta original) -->
+    <section id="exito" hidden>
+      <div class="check" aria-hidden="true">✓</div>
+      <h1>¡Pago completado!</h1>
+      <p id="detallePlan">Tu PDF ya está listo. Pulsa el botón para descargarlo. Recuerda: todo se ha
+         procesado en tu dispositivo, tus mensajes nunca salieron de aquí.</p>
+
+      <p id="mensaje" class="mensaje error" role="alert"></p>
+      <button id="descargar" class="boton">Descargar mi PDF</button>
+      <a href="/" class="volver">← Volver al inicio</a>
+    </section>
+
+    <!-- ← NUEVO · CARA 3: no hay pago válido -->
+    <section id="denegado" hidden>
+      <div class="cruz" aria-hidden="true">✕</div>
+      <h1>No hemos podido confirmar tu pago</h1>
+      <p id="motivo">Esta página solo está disponible después de completar el pago.
+         Si acabas de pagar y ves este mensaje, espera unos segundos y recarga.</p>
+      <a href="/" class="boton">Volver al inicio</a>
+    </section>
+
+  </main>
+
+  <script>
+    // ─────────────────────────────────────────────────────────────
+    //  ← NUEVO · BLOQUE 1: el portero decide si se ve la descarga
+    // ─────────────────────────────────────────────────────────────
+
+    // Nombres bonitos de cada plan, para el texto de la tarjeta.
+    const NOMBRES_PLAN = {
+      basico: 'Básico',
+      completo: 'Completo',
+      legal: 'Legal Pack'
+    };
+
+    /** Muestra una sola cara de la tarjeta y esconde las demás. */
+    function mostrarCara(idVisible) {
+      for (const id of ['comprobando', 'exito', 'denegado']) {
+        document.getElementById(id).hidden = (id !== idVisible);
+      }
+    }
+
+    /** Cambia el texto de la cara "denegado" según el motivo. */
+    function denegar(texto) {
+      if (texto) document.getElementById('motivo').textContent = texto;
+      document.title = 'Acceso no válido · WhatsApp a PDF';
+      mostrarCara('denegado');
+    }
+
+    /** Pregunta al servidor si el pago de esta sesión es real. */
+    async function comprobarPago() {
+      // Stripe añade ?session_id=cs_... al devolvernos al sitio.
+      const sessionId = new URLSearchParams(window.location.search).get('session_id');
+
+      // Sin resguardo no hay nada que comprobar: alguien ha entrado a pelo.
+      if (!sessionId) {
+        denegar('No hemos recibido ningún comprobante de pago. Si ya has pagado, ' +
+                'abre el enlace que te devolvió la pasarela; si no, vuelve al inicio ' +
+                'para generar tu PDF.');
+        return;
+      }
+
+      // Si el servidor no contesta en 15 s, cortamos en vez de dejar
+      // la página girando para siempre.
+      const cortar = new AbortController();
+      const temporizador = setTimeout(() => cortar.abort(), 15000);
+
+      try {
+        const respuesta = await fetch(
+          '/.netlify/functions/verificar-pago?session_id=' + encodeURIComponent(sessionId),
+          { signal: cortar.signal, cache: 'no-store' }
+        );
+
+        // Aunque el código sea 400 o 404, el cuerpo viene en JSON.
+        const datos = await respuesta.json().catch(() => null);
+
+        // La ÚNICA condición para desbloquear: el servidor dice pagado: true.
+        if (datos && datos.pagado === true) {
+          const nombre = NOMBRES_PLAN[datos.planId];
+          if (nombre) {
+            document.getElementById('detallePlan').textContent =
+              'Tu plan ' + nombre + ' está activo y tu PDF ya está listo. Pulsa el botón ' +
+              'para descargarlo. Recuerda: todo se ha procesado en tu dispositivo, ' +
+              'tus mensajes nunca salieron de aquí.';
+          }
+          document.title = '¡Pago completado! · WhatsApp a PDF';
+          mostrarCara('exito');
+          return;
+        }
+
+        // Cualquier otra respuesta = no pagado.
+        denegar(datos && datos.error
+          ? 'No hemos podido validar el pago (' + datos.error + '). Si el cobro se ha ' +
+            'realizado, espera unos segundos y recarga esta página.'
+          : undefined);
+
+      } catch (error) {
+        // Sin conexión o tiempo agotado: NO desbloqueamos por si acaso.
+        console.error('Error comprobando el pago:', error);
+        denegar('No hemos podido conectar con el servidor para validar el pago. ' +
+                'Comprueba tu conexión y recarga esta página.');
+      } finally {
+        clearTimeout(temporizador);
+      }
+    }
+
+    comprobarPago();
+
+    // ─────────────────────────────────────────────────────────────
+    //  BLOQUE 2: recuperar y descargar el PDF (sin cambios)
+    // ─────────────────────────────────────────────────────────────
+
+    // El PDF definitivo (sin marca de agua) se guardó en IndexedDB
+    // ANTES de ir a pagar. Aquí lo recuperamos y lo ofrecemos.
+    const DB_NOMBRE = 'chatapdf';
+    const DB_TIENDA = 'pdfs';
+    const PDF_CLAVE = 'pdf-actual';
+
+    function abrirDB() {
+      return new Promise((resolve, reject) => {
+        const solicitud = indexedDB.open(DB_NOMBRE, 1);
+        solicitud.onupgradeneeded = () => {
+          if (!solicitud.result.objectStoreNames.contains(DB_TIENDA)) {
+            solicitud.result.createObjectStore(DB_TIENDA);
+          }
+        };
+        solicitud.onsuccess = () => resolve(solicitud.result);
+        solicitud.onerror = () => reject(solicitud.error);
+      });
+    }
+
+    function recuperarPDF() {
+      return abrirDB().then((db) => new Promise((resolve, reject) => {
+        const tx = db.transaction(DB_TIENDA, 'readonly');
+        const peticion = tx.objectStore(DB_TIENDA).get(PDF_CLAVE);
+        peticion.onsuccess = () => { db.close(); resolve(peticion.result || null); };
+        peticion.onerror = () => { db.close(); reject(peticion.error); };
+      }));
+    }
+
+    const boton = document.getElementById('descargar');
+    const mensaje = document.getElementById('mensaje'); // ← NUEVO: avisos sin alert()
+
+    boton.addEventListener('click', async () => {
+      boton.disabled = true;
+      const textoOriginal = boton.textContent;
+      boton.textContent = 'Descargando…';
+      mensaje.textContent = '';
+      try {
+        const blob = await recuperarPDF();
+        if (!blob) {
+          mensaje.textContent = 'No encontramos el PDF en este navegador. ' +
+            'Vuelve al inicio y genera el chat de nuevo (el pago sigue siendo válido).';
+          return;
+        }
+        const url = URL.createObjectURL(blob);
+        const enlace = document.createElement('a');
+        enlace.href = url;
+        enlace.download = 'chat-whatsapp.pdf';
+        enlace.click();
+        // Liberamos la memoria un momento después de disparar la descarga.
+        setTimeout(() => URL.revokeObjectURL(url), 4000);
+      } catch (error) {
+        console.error('Error recuperando el PDF:', error);
+        mensaje.textContent = 'Ha ocurrido un error al preparar la descarga. Inténtalo de nuevo.';
+      } finally {
+        boton.disabled = false;
+        boton.textContent = textoOriginal;
+      }
+    });
+  </script>
+</body>
+</html>

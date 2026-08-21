@@ -1,0 +1,11 @@
+# netlify.toml
+# Instrucciones para Netlify: cómo construir la web y dónde está cada cosa.
+
+[build]
+  command = "npm run build"      # el comando que fabrica la web
+  publish = "dist"               # la carpeta que se publica en internet
+  functions = "netlify/functions" # donde viven tus funciones de servidor
+
+[dev]
+  framework = "vite"
+  targetPort = 5173
