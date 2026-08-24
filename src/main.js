@@ -620,34 +620,48 @@ async function pagarAhora() {
   boton.disabled = true;
 
   try {
-    // 1) Generamos el PDF final y lo guardamos en IndexedDB
     boton.textContent = 'Preparando tu PDF…';
     const blobPDF = await generarPDFBlob();
-    await guardarPDF(blobPDF);
+    
+    // Convertir blob a Base64
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64 = reader.result;
+      localStorage.setItem('chatapdf-pdf-pendiente', base64);
+      
+      try {
+        boton.textContent = 'Conectando con el pago…';
+        const respuesta = await fetch('/.netlify/functions/crear-sesion-pago', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ planId: plan.id }),
+        });
 
-    // 2) Pedimos la sesión de pago al servidor
-    boton.textContent = 'Conectando con el pago…';
-    const respuesta = await fetch('/.netlify/functions/crear-sesion-pago', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ planId: plan.id }),
-    });
+        if (!respuesta.ok) {
+          throw new Error('El servidor respondió ' + respuesta.status);
+        }
 
-    if (!respuesta.ok) {
-      throw new Error('El servidor respondió ' + respuesta.status);
-    }
-
-    const datos = await respuesta.json();
-
-    if (datos && datos.url) {
-      // Redirige al checkout seguro de Stripe
-      window.location.href = datos.url;
-    } else {
-      throw new Error('No he recibido la URL de pago.');
-    }
+        const datos = await respuesta.json();
+        if (datos && datos.url) {
+          window.location.href = datos.url;
+        } else {
+          throw new Error('No he recibido la URL de pago.');
+        }
+      } catch (errorPago) {
+        console.error('Error al conectar con el pago:', errorPago);
+        alert('No he podido preparar el pago. Inténtalo de nuevo en un momento.');
+        localStorage.removeItem('chatapdf-pdf-pendiente');
+        boton.disabled = false;
+        boton.textContent = textoOriginal;
+      }
+    };
+    reader.onerror = () => {
+      throw new Error('No he podido leer el PDF.');
+    };
+    reader.readAsDataURL(blobPDF);
   } catch (error) {
-    console.error('Error al iniciar el pago:', error);
-    alert('No he podido preparar el pago. Inténtalo de nuevo en un momento.');
+    console.error('Error al generar el PDF:', error);
+    alert('No he podido preparar el PDF. Inténtalo de nuevo en un momento.');
     boton.disabled = false;
     boton.textContent = textoOriginal;
   }

@@ -20,7 +20,7 @@ function respuesta(codigo, cuerpo) {
 
 exports.handler = async (event) => {
   // 1. Solo lectura: cualquier otro método se rechaza.
-  if (event.httpMethod !== 'GET') {
+  if (event.httpMethod !== 'POST') {
     return respuesta(405, { pagado: false, error: 'Método no permitido' });
   }
 
@@ -34,7 +34,8 @@ exports.handler = async (event) => {
 
   // 3. Validación del identificador antes de llamar a Stripe.
   //    Las sesiones de Checkout siempre empiezan por "cs_".
-  const sessionId = event.queryStringParameters?.session_id?.trim();
+  const datos = JSON.parse(event.body || '{}');
+const sessionId = datos.sessionId?.trim();
   if (!sessionId || !/^cs_[A-Za-z0-9_]+$/.test(sessionId)) {
     return respuesta(400, { pagado: false, error: 'Identificador de sesión no válido' });
   }

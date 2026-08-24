@@ -1,16 +1,776 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" href="data:," />
-    <title>Chat de WhatsApp a PDF</title>
-  </head>
-  <body>
-    <!-- Aquí es donde main.js "inyecta" toda la pantalla -->
-    <div id="app"></div>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ConvertirChat - WhatsApp a PDF</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='75' font-size='75'>💬</text></svg>">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-    <!-- Cargamos nuestro JavaScript como módulo -->
-    <script type="module" src="/src/main.js"></script>
-  </body>
+        :root {
+            --primary: #25D366;
+            --primary-dark: #1fa857;
+            --secondary: #075E54;
+            --bg: #ffffff;
+            --bg-light: #f0f0f0;
+            --text: #111;
+            --text-light: #666;
+            --border: #e0e0e0;
+            --success: #25D366;
+            --error: #ff4444;
+            --warning: #ffaa00;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #111;
+                --bg-light: #1a1a1a;
+                --text: #fff;
+                --text-light: #aaa;
+                --border: #333;
+            }
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, var(--bg-light) 0%, var(--bg) 100%);
+            color: var(--text);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        header {
+            background: linear-gradient(135deg, var(--secondary) 0%, var(--primary) 100%);
+            color: white;
+            padding: 2rem 1rem;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            font-weight: 700;
+        }
+
+        header p {
+            font-size: 1.1rem;
+            opacity: 0.95;
+        }
+
+        .trust-badges {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 2rem;
+            margin-top: 2rem;
+            padding-top: 2rem;
+            border-top: 1px solid rgba(255,255,255,0.2);
+            font-size: 0.95rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem 1rem;
+        }
+
+        .upload-section {
+            background: var(--bg);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 3rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            border: 2px dashed var(--border);
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .upload-section:hover {
+            border-color: var(--primary);
+            box-shadow: 0 4px 20px rgba(37, 211, 102, 0.1);
+        }
+
+        .upload-area {
+            padding: 2rem;
+            cursor: pointer;
+        }
+
+        .upload-area:hover {
+            background: var(--bg-light);
+        }
+
+        .upload-area.active {
+            background: rgba(37, 211, 102, 0.1);
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .upload-success {
+            display: none;
+            padding: 1.5rem;
+            background: rgba(37, 211, 102, 0.1);
+            border-radius: 8px;
+            border-left: 4px solid var(--success);
+            margin-bottom: 1rem;
+            animation: slideDown 0.3s ease;
+        }
+
+        .upload-success.show {
+            display: block;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .upload-success-text {
+            color: var(--success);
+            font-weight: 600;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(37, 211, 102, 0.3);
+        }
+
+        .btn-secondary {
+            background: var(--bg-light);
+            color: var(--text);
+            border: 2px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--primary);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .plans-section {
+            margin: 3rem 0;
+            display: none;
+        }
+
+        .plans-section.show {
+            display: block;
+            animation: slideUp 0.5s ease;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .plans-section h2 {
+            text-align: center;
+            margin-bottom: 3rem;
+            font-size: 2rem;
+        }
+
+        .plans-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+        }
+
+        .plan-card {
+            background: var(--bg);
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            border: 2px solid var(--border);
+            transition: all 0.3s ease;
+            text-align: center;
+            position: relative;
+        }
+
+        .plan-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 12px 30px rgba(37, 211, 102, 0.2);
+            border-color: var(--primary);
+        }
+
+        .plan-card.popular {
+            border-color: var(--primary);
+            background: linear-gradient(135deg, rgba(37, 211, 102, 0.05) 0%, var(--bg) 100%);
+            transform: scale(1.05);
+        }
+
+        .plan-card.popular::before {
+            content: "RECOMENDADO";
+            position: absolute;
+            top: -15px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--primary);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 50px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+
+        .plan-card.free {
+            opacity: 0.7;
+            border-color: #ccc;
+            background: var(--bg-light);
+            transform: scale(0.95);
+        }
+
+        .plan-card.free:hover {
+            transform: scale(0.95);
+            border-color: #bbb;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+
+        .plan-name {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+
+        .plan-price {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .plan-card.free .plan-price {
+            color: var(--text-light);
+        }
+
+        .plan-price small {
+            font-size: 1rem;
+            color: var(--text-light);
+            font-weight: 400;
+        }
+
+        .plan-billing {
+            color: var(--text-light);
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .plan-features {
+            text-align: left;
+            margin-bottom: 2rem;
+            min-height: 150px;
+        }
+
+        .plan-features li {
+            list-style: none;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        .plan-features li:last-child {
+            border-bottom: none;
+        }
+
+        .plan-features li::before {
+            content: "✓";
+            color: var(--primary);
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        .plan-features li.disabled {
+            opacity: 0.5;
+        }
+
+        .plan-features li.disabled::before {
+            content: "✗";
+            color: var(--text-light);
+        }
+
+        .plan-card.free .plan-features li.disabled {
+            display: none;
+        }
+
+        .tutorial-section {
+            background: var(--bg);
+            border-radius: 12px;
+            padding: 2rem;
+            margin: 3rem 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            border-left: 4px solid var(--primary);
+        }
+
+        .tutorial-section h3 {
+            margin-bottom: 1.5rem;
+            font-size: 1.3rem;
+        }
+
+        .tutorial-steps {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 2rem;
+        }
+
+        .tutorial-step {
+            text-align: center;
+        }
+
+        .step-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+            border-radius: 50%;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+
+        .tutorial-step p {
+            text-align: left;
+            margin-left: 3rem;
+            color: var(--text-light);
+        }
+
+        .tutorial-step strong {
+            color: var(--text);
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(4px);
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--bg);
+            border-radius: 16px;
+            padding: 2rem;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            animation: slideUp 0.3s ease;
+        }
+
+        .modal-header {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+
+        .modal-description {
+            color: var(--text-light);
+            margin-bottom: 1.5rem;
+            font-size: 0.95rem;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            font-size: 1rem;
+            background: var(--bg);
+            color: var(--text);
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 211, 102, 0.1);
+        }
+
+        .form-group input.error {
+            border-color: var(--error);
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .modal-buttons .btn {
+            flex: 1;
+        }
+
+        .status {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            display: none;
+        }
+
+        .status.show {
+            display: block;
+        }
+
+        .status.error {
+            background: rgba(255, 68, 68, 0.1);
+            color: var(--error);
+            border-left: 4px solid var(--error);
+        }
+
+        .status.loading {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+            border-left: 4px solid #667eea;
+        }
+
+        footer {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-light);
+            border-top: 1px solid var(--border);
+            margin-top: 4rem;
+        }
+
+        footer a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 1.8rem;
+            }
+
+            .plans-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .plan-card.popular {
+                transform: scale(1);
+            }
+
+            .plan-card.free {
+                transform: scale(1);
+            }
+
+            .trust-badges {
+                gap: 1rem;
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>💬 ConvertirChat</h1>
+        <p>Convierte tus chats de WhatsApp a PDF en segundos</p>
+        
+        <div class="trust-badges">
+            <div>🔒 No subimos nada a ningún servidor</div>
+            <div>📷 Las fotos salen de verdad en el PDF</div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="upload-section">
+            <h2>Sube tu chat de WhatsApp</h2>
+            <div class="upload-area" id="uploadArea">
+                <p style="font-size: 3rem; margin-bottom: 1rem;">↓</p>
+                <p><strong>Arrastra aquí tu archivo .txt o .zip, o haz clic</strong></p>
+                <p style="font-size: 0.9rem; color: var(--text-light); margin-top: 0.5rem;">Exporta tu chat desde WhatsApp siguiendo los pasos de abajo</p>
+                <input type="file" id="fileInput" accept=".txt,.zip" />
+            </div>
+            <div id="uploadStatus" class="upload-success">
+                <span class="upload-success-text">✓ Archivo cargado correctamente. Elige tu plan abajo.</span>
+            </div>
+            <div id="errorStatus" class="status"></div>
+        </div>
+
+        <section class="tutorial-section">
+            <h3>Cómo exportar tu chat (2 minutos)</h3>
+            <div class="tutorial-steps">
+                <div class="tutorial-step">
+                    <div class="step-number">1</div>
+                    <p>Abre el chat en <strong>WhatsApp</strong> y toca <strong>⋮ → Más → Exportar chat</strong></p>
+                </div>
+                <div class="tutorial-step">
+                    <div class="step-number">2</div>
+                    <p>Elige <strong>"Incluir archivos"</strong> para que salgan también las fotos y las notas de voz</p>
+                </div>
+                <div class="tutorial-step">
+                    <div class="step-number">3</div>
+                    <p>Guarda el <strong>.zip</strong> en tu ordenador y súbelo aquí arriba. ¡Listo!</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="plans-section" id="plansSection">
+            <h2>Elige tu opción</h2>
+            <div class="plans-grid">
+                <div class="plan-card free">
+                    <div class="plan-name">Descargar Gratis</div>
+                    <div class="plan-price">€0</div>
+                    <div class="plan-billing">Una descarga</div>
+                    <ul class="plan-features">
+                        <li>PDF con marca de agua</li>
+                        <li>Máximo 50 mensajes</li>
+                        <li>Solo texto (sin fotos)</li>
+                        <li class="disabled">Sin marca de agua</li>
+                        <li class="disabled">Fotos en el PDF</li>
+                    </ul>
+                    <button class="btn btn-secondary" onclick="descargarGratis()" style="width: 100%;">Descargar Gratis</button>
+                </div>
+
+                <div class="plan-card popular">
+                    <div class="plan-name">Acceso Completo</div>
+                    <div class="plan-price">€9.99<small>/única vez</small></div>
+                    <div class="plan-billing">De por vida, sin límites</div>
+                    <ul class="plan-features">
+                        <li>PDF sin marca de agua</li>
+                        <li>Chats sin límite de mensajes</li>
+                        <li>Descargas ilimitadas</li>
+                        <li>Fotos en el PDF</li>
+                        <li>Acceso a futuras mejoras</li>
+                    </ul>
+                    <button class="btn btn-primary" onclick="abrirModalCompra('lifetime')" style="width: 100%;">Comprar Ahora</button>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <div class="modal" id="emailModal">
+        <div class="modal-content">
+            <div class="modal-header">Tu email de acceso</div>
+            <div class="modal-description">Usaremos este email para verificar tu acceso cada vez que visites ConvertirChat. No compartiremos tu información.</div>
+            <form id="emailForm" onsubmit="enviarAlPago(event)">
+                <div class="form-group">
+                    <label for="emailInput">Email</label>
+                    <input type="email" id="emailInput" placeholder="tu@email.com" required />
+                </div>
+                <div id="modalStatus" class="status"></div>
+                <div class="modal-buttons">
+                    <button type="button" class="btn btn-secondary" onclick="cerrarModalCompra()">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" id="submitBtn">Continuar a Pago</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <footer>
+        <p>&copy; 2024 ConvertirChat. Todos los derechos reservados. | <a href="#">Privacidad</a> | <a href="#">Términos</a></p>
+    </footer>
+
+    <script>
+        let planSeleccionado = null;
+        let archivoSubido = null;
+
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const uploadStatus = document.getElementById('uploadStatus');
+        const errorStatus = document.getElementById('errorStatus');
+        const plansSection = document.getElementById('plansSection');
+        const emailInput = document.getElementById('emailInput');
+        const submitBtn = document.getElementById('submitBtn');
+        const modalStatus = document.getElementById('modalStatus');
+
+        uploadArea.addEventListener('click', () => fileInput.click());
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('active');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('active');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('active');
+            handleFile(e.dataTransfer.files[0]);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            handleFile(e.target.files[0]);
+        });
+
+        function handleFile(file) {
+            if (!file) return;
+
+            if (file.type !== 'text/plain' && file.type !== 'application/zip') {
+                mostrarError('Por favor, sube un archivo .txt o .zip válido.');
+                return;
+            }
+
+            if (file.size > 50 * 1024 * 1024) {
+                mostrarError('El archivo es demasiado grande. Máximo 50MB.');
+                return;
+            }
+
+            archivoSubido = file;
+            uploadStatus.classList.add('show');
+            errorStatus.classList.remove('show');
+            
+            plansSection.classList.add('show');
+            
+            setTimeout(() => {
+                plansSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 300);
+        }
+
+        function mostrarError(msg) {
+            errorStatus.textContent = msg;
+            errorStatus.classList.add('show', 'error');
+            uploadStatus.classList.remove('show');
+        }
+
+        function descargarGratis() {
+            if (!archivoSubido) {
+                mostrarError('Por favor, carga un archivo primero.');
+                return;
+            }
+            
+            // Implementar descarga aquí
+            alert('Descargando PDF gratis con marca de agua...');
+        }
+
+        function abrirModalCompra(plan) {
+            if (!archivoSubido) {
+                mostrarError('Por favor, carga un archivo primero.');
+                return;
+            }
+            planSeleccionado = plan;
+            emailInput.value = '';
+            emailInput.classList.remove('error');
+            modalStatus.classList.remove('show');
+            document.getElementById('emailModal').classList.add('active');
+            emailInput.focus();
+        }
+
+        function cerrarModalCompra() {
+            document.getElementById('emailModal').classList.remove('active');
+            planSeleccionado = null;
+        }
+
+        async function enviarAlPago(event) {
+            event.preventDefault();
+            const email = emailInput.value.trim();
+
+            if (!email || !email.includes('@')) {
+                emailInput.classList.add('error');
+                mostrarModalError('Email no válido');
+                return;
+            }
+
+            emailInput.classList.remove('error');
+            submitBtn.disabled = true;
+            mostrarModalStatus('Redirigiendo a pago seguro...', 'loading');
+
+            try {
+                // Llamar a la función Netlify
+                const response = await fetch('/.netlify/functions/crear-sesion-pago', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        planId: planSeleccionado,
+                        email: email
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok || !data.url) {
+                    throw new Error(data.error || 'Error al crear la sesión de pago');
+                }
+
+                // Guardar en sessionStorage antes de redirigir
+                sessionStorage.setItem('userEmail', email);
+                sessionStorage.setItem('userPlan', planSeleccionado);
+
+                // Redirigir a Stripe
+                window.location.href = data.url;
+
+            } catch (error) {
+                console.error('Error:', error);
+                mostrarModalError('No se pudo procesar el pago. Intenta de nuevo.');
+                submitBtn.disabled = false;
+            }
+        }
+
+        function mostrarModalStatus(msg, tipo) {
+            modalStatus.textContent = msg;
+            modalStatus.className = `status show ${tipo}`;
+        }
+
+        function mostrarModalError(msg) {
+            mostrarModalStatus(msg, 'error');
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') cerrarModalCompra();
+        });
+    </script>
+</body>
 </html>

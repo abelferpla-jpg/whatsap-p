@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "netlify dev",
     "build": "vite build",
     "preview": "vite preview"
   },
@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@stripe/stripe-js": "^9.9.0",
+    "firebase": "^12.18.0",
     "html2pdf.js": "^0.14.0",
     "jszip": "^3.10.1",
     "stripe": "^22.3.1"
